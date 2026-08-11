@@ -56,11 +56,17 @@ function parseRows(rawRows, headers) {
       const raw = row[sc];
       if (raw === null || raw === undefined || String(raw).trim() === '') continue;
       const g = normalizeGrade(raw);
-      if (!g) continue;
-      grades[sc] = g;
-      const pt = gradePoint(g);
+      if (!g || !(g in GRADE_POINTS) && !FAIL_GRADES.has(g)) {
+        // skip numeric marks / non-grade values
+        const up = String(raw).trim().toUpperCase();
+        if (!GRADE_POINTS.hasOwnProperty(up) && !FAIL_GRADES.has(up)) continue;
+      }
+      const gg = normalizeGrade(raw);
+      if (!gg || (!GRADE_POINTS.hasOwnProperty(gg) && !FAIL_GRADES.has(gg))) continue;
+      grades[sc] = gg;
+      const pt = gradePoint(gg);
       if (pt !== null) { pointsSum += pt; creditCount++; }
-      if (isFail(g)) arrears.push(sc);
+      if (isFail(gg)) arrears.push(sc);
     }
     if (!Object.keys(grades).length) continue;
     const gpa = creditCount ? Math.round((pointsSum / creditCount) * 100) / 100 : 0;
@@ -74,7 +80,13 @@ function parseRows(rawRows, headers) {
       result: arrears.length === 0 ? 'pass' : 'arrear',
     });
   }
-  if (!records.length) throw new Error('No student records with grades found. Check column headers.');
+  if (!records.length) throw new Error(
+      'No student grades found. This file needs letter grades (O, A+, A, B+, B, C, U).\n\n' +
+      '• Upload the Anna University COE provisional results PDF, or\n' +
+      '• Click “Load AIML Sem-4 Sample”, or\n' +
+      '• Use CSV/Excel with subject columns containing grades.\n\n' +
+      'Student master lists (phone, address, bank, SSC marks) will not work.'
+    );
   subjects = subjectCols.filter(sc => records.some(r => r.grades[sc]));
   return records;
 }
@@ -462,9 +474,8 @@ function parseAnnaUniversityPdfPages(pages) {
   subjects = [...subjSet];
   if (!records.length) {
     throw new Error(
-      'Could not extract student grades from this PDF. ' +
-      'Use a text-based Anna University COE PDF, or upload CSV/Excel. ' +
-      'You can also click “Load AIML Sem-4 Sample”.'
+      'Could not extract grades from this PDF.\n' +
+      'Use the text-based Anna University COE PDF, or click “Load AIML Sem-4 Sample”.'
     );
   }
   return records;
@@ -475,8 +486,8 @@ async function handlePdfFile(arrayBuffer) {
   const joined = pages.map(p => p.text).join('\n');
   if (!/ANNA UNIVERSITY|3108\d{8}|Provisional Results/i.test(joined)) {
     throw new Error(
-      'This does not look like an Anna University COE result PDF. ' +
-      'Upload the provisional results PDF or use CSV/Excel.'
+      'This does not look like an Anna University COE result PDF.\n' +
+      'Upload the provisional results PDF, or click “Load AIML Sem-4 Sample”.'
     );
   }
   return parseAnnaUniversityPdfPages(pages);
@@ -510,14 +521,29 @@ function handleFile(file) {
 }
 
 function loadSample() {
-  fetch('data/aiml_sem4_sample.csv')
-    .then(r => r.text())
-    .then(text => {
-      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-      const records = parseRows(parsed.data, parsed.meta.fields);
-      onDataLoaded(records);
-    })
-    .catch(() => alert('Could not load sample file. Make sure data/aiml_sem4_sample.csv is present.'));
+  const tryParse = (text) => {
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    return parseRows(parsed.data, parsed.meta.fields);
+  };
+  (async () => {
+    const attempts = [];
+    if (typeof window.__SAMPLE_CSV__ === 'string' && window.__SAMPLE_CSV__.length > 50) {
+      attempts.push(() => Promise.resolve(window.__SAMPLE_CSV__));
+    }
+    attempts.push(() => fetch('data/aiml_sem4_sample.csv').then(r => { if (!r.ok) throw new Error('local'); return r.text(); }));
+    attempts.push(() => fetch('https://cdn.jsdelivr.net/gh/sairambn/aiml-result-analyzer@main/data/aiml_sem4_sample.csv').then(r => { if (!r.ok) throw new Error('cdn'); return r.text(); }));
+    attempts.push(() => fetch('https://raw.githubusercontent.com/sairambn/aiml-result-analyzer/main/data/aiml_sem4_sample.csv').then(r => { if (!r.ok) throw new Error('gh'); return r.text(); }));
+    let lastErr;
+    for (const get of attempts) {
+      try {
+        const text = await get();
+        const records = tryParse(text);
+        onDataLoaded(records);
+        return;
+      } catch (e) { lastErr = e; }
+    }
+    alert('Could not load Sem-4 sample. ' + (lastErr && lastErr.message ? lastErr.message : 'Try again later.'));
+  })();
 }
 
 function switchView(viewId) {
