@@ -4,19 +4,192 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AIML Result Analyzer | Jeppiaar · 3rd Year</title>
+  <link rel="stylesheet" href="css/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <style>/* See full app in repo - deploying core */ body{font-family:Inter,sans-serif;background:#0b0f19;color:#e2e8f0;margin:0;padding:2rem;text-align:center} a{color:#3b82f6}</style>
 </head>
 <body>
-  <h1>AIML Result Analyzer</h1>
-  <p>Jeppiaar Engineering College · B.E. CSE (AIML) · 3rd Year</p>
-  <p>Full application is being deployed. Please use the local build or wait for complete push.</p>
-  <p><a href="https://github.com/sairambn/aiml-result-analyzer">View on GitHub</a></p>
-  <p>Open <code>standalone.html</code> from the artifacts folder for the complete offline app.</p>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+          <div class="logo-text">
+            <span>AIML Results</span>
+            <small>3rd Year · Jeppiaar</small>
+          </div>
+        </div>
+        <button class="icon-btn" id="sidebarToggle" aria-label="Toggle sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" data-view="students">Students</button>
+        <button class="nav-item" data-view="subjects">Subjects</button>
+        <button class="nav-item" data-view="arrears">Arrears</button>
+        <button class="nav-item" data-view="upload">Upload Data</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="data-status" id="dataStatus">
+          <span class="status-dot"></span>
+          <span>No data loaded</span>
+        </div>
+        <div class="uni-badge">Anna University · Grades</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 id="pageTitle">Dashboard</h1>
+          <p class="subtitle" id="pageSubtitle">B.E. CSE (AIML) · Semester results analysis</p>
+        </div>
+        <div class="topbar-right">
+          <button class="btn btn-secondary" id="exportBtn" style="display:none">Export CSV</button>
+        </div>
+      </header>
+
+      <section class="view" id="view-upload">
+        <div class="upload-hero">
+          <div class="upload-zone" id="dropZone">
+            <div class="upload-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <h2>Upload Result File</h2>
+            <p>Drag & drop CSV / Excel with Anna University grades</p>
+            <p class="hint">Columns: Reg No, Name, Semester, then subject codes with grades (O, A+, A, B+, B, C+, C, U…)</p>
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
+            <button class="btn btn-primary" id="browseBtn">Choose File</button>
+          </div>
+          <div class="format-help">
+            <h3>Quick start for AIML 3rd Year</h3>
+            <p>Load the prepared Semester 4 sample from the April/May 2026 provisional results (Jeppiaar Engineering College).</p>
+            <button class="btn btn-primary" id="loadSampleBtn">Load AIML Sem-4 Sample</button>
+            <hr class="help-divider" />
+            <h3>Grade scale used</h3>
+            <div class="grade-legend">
+              <span><b>O</b> 10</span><span><b>A+</b> 9</span><span><b>A</b> 8</span><span><b>B+</b> 7</span>
+              <span><b>B</b> 6</span><span><b>C+</b> 5</span><span><b>C</b> 4</span><span><b>U / UA</b> Fail</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view active" id="view-dashboard">
+        <div class="empty-state" id="dashEmpty">
+          <h2>No results loaded</h2>
+          <p>Upload a grade sheet or load the AIML Sem-4 sample.</p>
+          <button class="btn btn-primary" data-goto="upload">Go to Upload</button>
+        </div>
+        <div class="dashboard-content" id="dashContent" style="display:none">
+          <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-icon blue"></div><div class="kpi-body"><span class="kpi-label">Students</span><span class="kpi-value" id="kpiStudents">—</span></div></div>
+            <div class="kpi-card"><div class="kpi-icon green"></div><div class="kpi-body"><span class="kpi-label">Clear Pass %</span><span class="kpi-value" id="kpiPass">—</span></div></div>
+            <div class="kpi-card"><div class="kpi-icon purple"></div><div class="kpi-body"><span class="kpi-label">Avg GPA</span><span class="kpi-value" id="kpiGpa">—</span></div></div>
+            <div class="kpi-card"><div class="kpi-icon orange"></div><div class="kpi-body"><span class="kpi-label">With Arrears</span><span class="kpi-value" id="kpiArrears">—</span></div></div>
+          </div>
+          <div class="charts-row">
+            <div class="card chart-card"><div class="card-header"><h3>Grade Distribution</h3></div><div class="chart-wrap"><canvas id="gradeChart"></canvas></div></div>
+            <div class="card chart-card"><div class="card-header"><h3>Clear Pass vs Arrears</h3></div><div class="chart-wrap"><canvas id="passFailChart"></canvas></div></div>
+          </div>
+          <div class="charts-row">
+            <div class="card chart-card wide"><div class="card-header"><h3>Subject-wise Pass Rate</h3></div><div class="chart-wrap"><canvas id="subjectChart"></canvas></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Top Performers (by GPA)</h3></div>
+            <div class="table-wrap">
+              <table class="data-table" id="topTable">
+                <thead><tr><th>Rank</th><th>Reg No</th><th>Name</th><th>GPA</th><th>Arrears</th><th>Result</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-students">
+        <div class="empty-state" id="studentsEmpty"><p>Upload data to view students.</p><button class="btn btn-primary" data-goto="upload">Upload</button></div>
+        <div id="studentsContent" style="display:none">
+          <div class="filters-bar">
+            <div class="filter-group"><label>Result</label>
+              <select id="filterResult"><option value="">All</option><option value="pass">Clear Pass</option><option value="arrear">Has Arrears</option></select>
+            </div>
+            <div class="filter-group grow"><label>Search</label><input type="text" id="studentSearch" placeholder="Reg no or name..." /></div>
+          </div>
+          <div class="card">
+            <div class="table-wrap">
+              <table class="data-table" id="studentsTable">
+                <thead><tr><th>Reg No</th><th>Name</th><th>Semester</th><th>GPA</th><th>Arrears</th><th>Result</th><th></th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="table-footer"><span id="studentsCount">0 students</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-subjects">
+        <div class="empty-state" id="subjectsEmpty"><p>Upload data to view subject analysis.</p><button class="btn btn-primary" data-goto="upload">Upload</button></div>
+        <div id="subjectsContent" style="display:none">
+          <div class="card">
+            <div class="card-header"><h3>Subject Performance</h3></div>
+            <div class="table-wrap">
+              <table class="data-table" id="subjectsTable">
+                <thead><tr><th>Subject</th><th>Appeared</th><th>Pass</th><th>Fail (U)</th><th>Pass %</th><th>Most Common Grade</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card chart-card" style="margin-top:1.25rem">
+            <div class="card-header"><h3>Subject Pass Percentage</h3></div>
+            <div class="chart-wrap"><canvas id="subjectPassChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-arrears">
+        <div class="empty-state" id="arrearsEmpty"><p>Upload data to view arrear analysis.</p><button class="btn btn-primary" data-goto="upload">Upload</button></div>
+        <div id="arrearsContent" style="display:none">
+          <div class="kpi-grid three">
+            <div class="kpi-card"><div class="kpi-icon orange"></div><div class="kpi-body"><span class="kpi-label">Students with Arrears</span><span class="kpi-value" id="arrStudents">—</span></div></div>
+            <div class="kpi-card"><div class="kpi-icon red"></div><div class="kpi-body"><span class="kpi-label">Total Arrear Papers</span><span class="kpi-value" id="arrPapers">—</span></div></div>
+            <div class="kpi-card"><div class="kpi-icon purple"></div><div class="kpi-body"><span class="kpi-label">Hardest Subject</span><span class="kpi-value" id="arrHardest" style="font-size:1.1rem">—</span></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Students with Arrears</h3></div>
+            <div class="table-wrap">
+              <table class="data-table" id="arrearsTable">
+                <thead><tr><th>Reg No</th><th>Name</th><th>Arrear Count</th><th>Failed Subjects</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="studentModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Student Details</h2>
+        <button class="icon-btn" id="closeModal">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+  <script src="js/app.js"></script>
 </body>
 </html>
